@@ -5,66 +5,31 @@ import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
 import androidx.room.TypeConverters
-import androidx.sqlite.db.SupportSQLiteDatabase
 import com.example.bepresent.database.dao.*
 import com.example.bepresent.database.room.*
 import com.example.bepresent.database.typeConverters.*
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
 
-@Database(entities = [UserRoom::class, GiftRoom::class, GiftBoardRoom::class, ReservationRoom::class], version = 1)
-@TypeConverters(DateConverter::class, ImageConverter::class, ListConverter::class)
+@Database(entities = [GiftRoom::class, GiftBoardRoom::class, ReservedGiftsRoom::class], version = 2)
+@TypeConverters(TypeConverter::class)
 abstract class DatabaseManager : RoomDatabase() {
     // Used to operate with tables; functions defined within Dao's are requests to this table
     // Table structure defined within respective room class
-    abstract fun userDao(): UserDao
     abstract fun giftDao(): GiftDao
     abstract fun giftBoardDao(): GiftBoardDao
-    abstract fun reservationDao(): ReservationDao
+    abstract fun reservedGiftsDao(): ReservedGiftDao
 
     companion object {
-        @Volatile private var INSTANCE: DatabaseManager? = null
+        @Volatile private var instance: DatabaseManager? = null
 
         // Call this function in main to get DB
-        fun getDatabase(context: Context): DatabaseManager {
-            return INSTANCE ?: synchronized(this) {
-                val instance = Room.databaseBuilder(
-                    context.applicationContext,
-                    DatabaseManager::class.java,
-                    "app_database"
-                ).fallbackToDestructiveMigration() // Destroys and recreates DB if schema changes
-                    .addCallback(DatabaseCallback())
-                    .build()
-                INSTANCE = instance
-                instance
+        fun getDatabase(context: Context): DatabaseManager =
+            instance ?: synchronized(this) {
+                instance ?: buildDatabase(context).also { instance = it }
             }
-        }
-    }
-
-    private class DatabaseCallback : Callback() {
-        override fun onCreate(db: SupportSQLiteDatabase) {
-            super.onCreate(db)
-            CoroutineScope(Dispatchers.IO).launch {
-                // Get Dao for each table
-                val userDao = INSTANCE?.userDao()
-                val giftDao = INSTANCE?.giftDao()
-                val giftBoardDao = INSTANCE?.giftBoardDao()
-                // Define arrays
-                val dataCount = 20
-                val newUsers = TestDataGenerator.generateTestUsers(dataCount)
-                for (user in newUsers){
-                    userDao?.insertUser(user)
-                }
-                val newGifts = TestDataGenerator.generateTestGifts(dataCount)
-                for (gift in newGifts){
-                    giftDao?.insertGift(gift)
-                }
-                val newBoards = TestDataGenerator.generateTestGiftBoards(dataCount)
-                for (board in newBoards){
-                    giftBoardDao?.insertGiftBoard(board)
-                }
-            }
-        }
+        // Create new Local Database if don't have one
+        private fun buildDatabase(context: Context) =
+            Room.databaseBuilder(context.applicationContext,
+                DatabaseManager::class.java, "LocalDatabase.db")
+                .build()
     }
 }
